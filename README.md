@@ -1,1 +1,1 @@
-# Mancala-Bot
+# Mancala Bot
