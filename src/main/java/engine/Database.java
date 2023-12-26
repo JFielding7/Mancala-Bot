@@ -10,32 +10,22 @@ import static engine.Engine.encode;
 
 public class Database {
     public static void main(String[] args) {
-        long start = System.currentTimeMillis();
-//        loadCache(16, loadBinaryCache(16));
-        // System.out.println(cache.size());
 //        System.gc();
 //        long memory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-//        System.out.println(memory);
-////        int[] x = new int[2000000000];
-        System.out.println(combosSum(13, 6).multiply(combosSum(15,6)));
+//        int[] x = new int[2000000000];
+        long start = System.currentTimeMillis();
+        System.out.println(combosSum(40, 6).longValue());
+        System.out.println(System.currentTimeMillis() - start);
 //        System.gc();
 //        System.out.println((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() - memory) / 1_000_000_000.0);
 //        System.out.println(Runtime.getRuntime().freeMemory() / 1_000_000_000.0);
 //        System.out.println(System.currentTimeMillis() - start);
-        int p2 = encode(new StringBuilder("3 2 1 0 0 1").reverse().toString());
-        int p1 = encode("1 2 2 2 2 2");
-        int stones = 18;
-        long pos = ((long) p2 << 30) + (long) p1;
-        System.out.println(pos);
-        // System.out.println(positionIndex(pos, stones));
-        System.out.println(getPosition(positionIndex(pos, stones), stones));
-        // System.out.println(System.currentTimeMillis() - start);
     }
 
     static int positionIndex(long position, int stones) {
         int index = 0;
-        for(int i = 0; i < 12; i++) {
-            index += combosSum(stones - 1, 12 - i).intValue();
+        for(int i = 0; i < 12 && stones > 0; i++) {
+            index += comboSums[stones - 1][12 - i];
             stones -= (int) (position >> i * 5 & 0b11111);
         }
         return index;
@@ -68,7 +58,7 @@ public class Database {
     }
 
     static HashMap<String, BigInteger> combosCache = new HashMap<>();
-    static int[][] comboSums = generateComboSums(30);
+    static int[][] comboSums = generateComboSums(43);
 
     static int[][] generateComboSums(int size) {
         int[][] comboSums = new int[size][];
@@ -118,15 +108,71 @@ public class Database {
         return cache;
     }
 
-    static void generateDatabase(int size){
-        int positions = comboSums[size][12];
-        int totalStones = 0;
-        byte[] scores = new byte[positions];
-        for(int p = 0; p < positions; p++) {
-            long position = getPosition(p, totalStones);
-            int piles1 = (int) (position & (1 << 30) - 1), piles2 = (int) (position >> 30);
+    static byte[] optimalScores;
+    static boolean[] scoredCached;
 
+    static void generateDatabase(int size) {
+        int positions = comboSums[size][12];
+        optimalScores = new byte[positions];
+        scoredCached = new boolean[positions];
+        int totalStones = 0;
+        int threshold = comboSums[totalStones][12];
+        for(int i = 0; i < positions; i++) {
+            if (i == threshold) threshold = comboSums[++totalStones][12];
+            long position = getPosition(i, totalStones);
+            int piles1 = (int) (position & (1 << 30) - 1), piles2 = (int) (position >> 30);
+            getOptimalScore(piles1, piles2, totalStones);
         }
+        try (FileOutputStream out = new FileOutputStream("Pos" + size + ".bin")) {
+            out.write(optimalScores);
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    static int getOptimalScore(int piles1, int piles2, int totalStones) {
+        int index = positionIndex(((long) piles2 << 30) + (long) piles1, totalStones);
+        if (piles1 == 0) {
+            optimalScores[index] = 0;
+            return 0;
+        }
+        if (piles2 == 0) {
+            optimalScores[index] = (byte) totalStones;
+            return totalStones;
+        }
+        if (scoredCached[index]) return optimalScores[index];
+        int optimalScore = 0;
+        for (int i = 0; i < 6; i++) {
+            int iShift = i * 5;
+            int stones = (piles1 >> iShift) & 31;
+            if (stones > 0) {
+                int score = 0;
+                int nextPiles1 = piles1 - (stones << iShift);
+                int nextPiles2 = piles2;
+                for (int j = 0; j < 6; j++) {
+                    int jShift = j * 5;
+                    nextPiles1 += ((j - i + 13) % 13 + stones) / 13 << jShift;
+                    nextPiles2 += ((j - i + 6) % 13 + stones) / 13 << jShift;
+                }
+                int dest = (52 + i - stones) % 13, destShift = dest * 5;
+                if (stones > i) score += (12 - i + stones) / 13;
+                if (dest < 6 && stones < 14 && ((piles1 >> destShift) & 31) == 0) {
+                    int shift2 = (5 - dest) * 5;
+                    if (((nextPiles2 >> shift2) & 31) != 0) {
+                        nextPiles1 &= ~(31 << destShift);
+                        score += ((nextPiles2 >> shift2) & 31) + 1;
+                        nextPiles2 &= ~(31 << shift2);
+                    }
+                }
+                int remaining = totalStones - score;
+                if (dest == 12) optimalScore = Math.max(optimalScore, score + getOptimalScore(nextPiles1, nextPiles2, remaining));
+                else optimalScore = Math.max(optimalScore, totalStones - getOptimalScore(nextPiles2, nextPiles1, remaining));
+            }
+        }
+        scoredCached[index] = true;
+        optimalScores[index] = (byte) optimalScore;
+        return optimalScore;
     }
 
     static void sortDatabase() {

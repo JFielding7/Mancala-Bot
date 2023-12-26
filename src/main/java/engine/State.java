@@ -44,7 +44,6 @@ public final class State {
                 nextPiles2 &= ~(31 << shift2);
             }
         }
-        System.out.println(nextPiles2 == piles2);
         return dest == 12 ? new State(nextPiles1, nextPiles2, nextScore, score2, comTurn, pile) : new State(nextPiles2, nextPiles1, score2, nextScore, !comTurn, pile);
     }
 

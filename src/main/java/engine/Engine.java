@@ -1,7 +1,6 @@
 package engine;
 
 import java.io.*;
-import java.math.BigInteger;
 import java.util.*;
 
 public class Engine {
@@ -9,7 +8,6 @@ public class Engine {
     static void loadBinaryArr(int endgame) {
         positions = new long[Database.combosSum(endgame, 12).intValue()];
         scores = new byte[positions.length];
-        endScores = new byte[positions.length];
         int curr = 0;
         try(FileInputStream in = new FileInputStream("C:\\Users\\josep\\IdeaProjects\\Mancala-Bot\\Positions16.bin")){
             byte[] bytes = new byte[9 * Database.combosSum(endgame, 12).intValue()];
@@ -25,228 +23,62 @@ public class Engine {
         } catch (IOException e) { throw new RuntimeException(e); }
     }
 
-    public static void main2(String[] args) {
-        int p2 = encode(new StringBuilder("4 4 4 4 4 4").reverse().toString());
-        int p1 = encode("4 4 4 4 4 4");
-        int score1 = 0;
-        int score2 = 0;
-        System.gc();
-        long memory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-        loadBinaryArr(16);
-        endGameCache = Database.loadBinaryCache(16);
-        long start = System.currentTimeMillis();
-        System.out.println(evaluatePosition(p1, p2, score1, score2, -1, 1));
-        System.out.println(System.currentTimeMillis() - start);
-        System.out.println(x);
-        System.out.println(winCache.size());
-        System.gc();
-        System.out.println((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() - memory) / 1000000000.0);
-    }
-
-    public static void main3(String[] args) {
-        Random rand = new Random(42);
-        int length = 10000000;
-        int[] arr = new int[length];
-        HashMap<Integer, Integer> map = new HashMap<>();
-        for(int i = 0; i < length; i++) {
-            int num = rand.nextInt(length);
-            arr[i] = num;
-            map.put(num, i);
+    static byte[] loadEndgameCache(int size) {
+        byte[] optimalScores = new byte[Database.combosSum(size, 12).intValue()];
+        try(FileInputStream in = new FileInputStream("C:\\Users\\josep\\IdeaProjects\\Mancala-Bot\\Pos" + size + ".bin")){
+            in.read(optimalScores);
         }
-        Arrays.sort(arr);
-//        System.out.println(Arrays.toString(Arrays.copyOfRange(arr, 0, 100000)));
-        System.out.println("started");
-        long start = System.currentTimeMillis();
-        Integer index = 0;
-        for(int i = 0; i < length; i++)
-//            index = interpolationSearch(arr, rand.nextInt(length));
-            // System.out.println(index);
-        System.out.println(System.currentTimeMillis() - start);
-        start = System.currentTimeMillis();
-        for(int i = 0; i < length; i++)
-            index = map.get(rand.nextInt(length));
-        System.out.println(index);
-        System.out.println(System.currentTimeMillis() - start);
+        catch (IOException e) { throw new RuntimeException(e); }
+        return optimalScores;
     }
 
     static int maxScore = 48;
     static int threshold = maxScore >>> 1;
-    static int x;
-    static int endgame = 16;
+    static long x;
+    static int endgame = 24;
     static int midGame = maxScore - endgame - 1;
-    static HashMap<Long, Integer> endGameCache;
-    static HashMap<Long, Integer> winCache = new HashMap<>();
-
     static HashMap<Integer, HashSet<Integer>> seen = new HashMap<>();
     static long[] positions;
     static byte[] scores;
-    static byte[] endScores;
+    static HashSet<Long> posSeen = new HashSet<>();
+
 
     public static void main(String[] args) {
-//        System.gc();
-//        long memory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-//        byte[] x = new byte[1000000000];
-//        System.gc();
-//        System.out.println((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() - memory) / 1000000000.0);
-        loadBinaryArr(endgame);
+        // loadBinaryArr(endgame);
+        optimalScores = loadEndgameCache(endgame);
         int p2 = encode(new StringBuilder("4 4 4 4 4 4").reverse().toString());
         int p1 = encode("4 4 4 4 4 4");
-        int score1 = 0;
-        int score2 = 0;
+        System.out.println(p2);
+        int score1 = -4;
+        int score2 = 4;
+        calculateHueristics(138547332, 138547332, 6);
         long startTime = System.currentTimeMillis();
-//        System.out.println(new State(p1, p2, score1, score2, true, -1).nextMove(0));
-        System.out.println("Eval: " + evaluatePosition(p1, p2, score1, score2, -1, 1, true));
+        System.out.println("Eval: " + evaluatePosition(p1, p2, score1, score2, -1, 1));
         System.out.println("Time: " + (System.currentTimeMillis() - startTime));
-        System.out.println(upsets.size());
-        for(long pos : upsets) {
-            System.out.println(decode((int) pos, true));
-            System.out.println(decode((int) (pos >> 30), false));
-        }
-//        int matches = 0;
-//        for(Integer piles : scoreCache.keySet()) {
-//            Pair pair = scoreCache.get(piles);
-//            if(!pair.losses.stream().allMatch(loss -> pair.wins.stream().allMatch(win -> win >= loss - 3))) {
-////                System.out.println(pair.wins);
-////                System.out.println(pair.losses);
-//                System.out.println(decode(piles, false));
-//            }
-//            else matches++;
-//        }
-//        System.out.println(matches);
-//        System.out.println(scoreCache.size());
         System.out.println(x);
     }
 
-    static int getIndex(int piles) {
-        int index = 0;
-        for(int i = 0; i < 6; i++) {
-            int stones = (piles >> (5 * i) & 31);
-            if (stones > 19) return -1;
-            index += (int) Math.pow(20, i) * stones;
-        }
-        return index;
-    }
-
-    static boolean[][] strongMoves = new boolean[1][6];
-
-    static int[] moveOrder(int piles) {
-        int index = getIndex(piles);
-        if(index == -1) return new int[] {0, 1, 2, 3, 4, 5};
-        boolean[] moves = strongMoves[index];
-        int[] order = new int[6];
-        int idx = 0;
-        for(int i = 0; i < 6; i++) {
-            if(moves[i]) order[idx++] = i;
-        }
-        for(int i = 0; i < 6; i++) {
-            if(!moves[i]) order[idx++] = i;
-        }
-        return order;
-    }
-
-//    static HashMap<Integer, HashSet<Integer>> strongMoves = new HashMap<>();
-//    static int[] moveOrder(int piles1, int piles2) {
-//        int index = 0, lowIdx = 0;
-//        int[] moves = new int[6], lowPriority = new int[6];
-//        for(int i = 0; i < 6; i++) {
-//            if((piles1 >> (i * 5) & 31) == i + 1) moves[index++] = i;
-//            else lowPriority[lowIdx++] = i;
-//        }
-//        lowIdx = 0;
-//        while(index < 6) moves[index++] = lowPriority[lowIdx++];
-//        return moves;
-//    }
-
-//    static int[] moveOrder(int piles) {
-//        int[] order = new int[6];
-//        HashSet<Integer> moves = strongMoves.getOrDefault(piles, new HashSet<>());
-//        int i = 0, j = moves.size();
-//        for(int k = 0; k < 6; k++) {
-//            if(moves.contains(k)) order[i++] = k;
-//            else order[j++] = k;
-//        }
-//        return order;
-//    }
-
-    static HashMap<Integer, Pair> scoreCache = new HashMap<>();
-    static HashSet<Long> upsets = new HashSet<>();
-
-    static int evaluatePosition(int piles1, int piles2, int score1, int score2, int bestEval1, int bestEval2, boolean turn){
-        if(score1 + score2 > midGame) {
-            long posCode = ((long) piles1 << 30) + (long) piles2;
-            score1 += scores[Arrays.binarySearch(positions, posCode)];
-            score2 = maxScore - score1;
-        }
-        else if(piles1 == 0) score2 = maxScore - score1;
-        else if(piles2 == 0) score1 = maxScore - score2;
-        if(score1 > threshold) return 1;
-        if(score2 > threshold) return -1;
-        if(score1 == threshold && score2 == threshold) return 0;
-        x++;
-        if(score1 - score2 > 1) return 1;
-        if(score2 - score1 > 1) return -1;
-        int maxEval = -1;
-        int empty = 0;
-        for(int i = 0; i < 6; i++){
-            int iShift = i * 5;
-            int stones = (piles1 >> iShift) & 31;
-            if(stones > 0) {
-                int nextScore = score1;
-                int nextPiles1 = piles1 - (stones << iShift);
-                int nextPiles2 = piles2;
-                for (int j = 0; j < 6; j++) {
-                    int jShift = j * 5;
-                    nextPiles1 += ((j - i + 13) % 13 + stones) / 13 << jShift;
-                    nextPiles2 += ((j - i + 6) % 13 + stones) / 13 << jShift;
-                }
-                int dest = (52 + i - stones) % 13, destShift = dest * 5;
-                if (stones > i) nextScore += (12 - i + stones) / 13;
-                if (dest < 6 && stones < 14 && ((piles1 >> destShift) & 31) == 0) {
-                    int shift2 = (5 - dest) * 5;
-                    if (((nextPiles2 >> shift2) & 31) != 0) {
-                        nextPiles1 &= ~(31 << destShift);
-                        nextScore += ((nextPiles2 >> shift2) & 31) + 1;
-                        nextPiles2 &= ~(31 << shift2);
-                    }
-                }
-                int eval;
-                if (dest == 12) eval = evaluatePosition(nextPiles1, nextPiles2, nextScore, score2, bestEval1, bestEval2, turn);
-                else eval = -evaluatePosition(nextPiles2, nextPiles1, score2, nextScore, -bestEval2, -bestEval1, !turn);
-                if(eval > maxEval) maxEval = eval;
-                if(eval > bestEval1) bestEval1 = eval;
-                if (bestEval1 >= bestEval2) {
-                    // if(bestEval1 == 1) scoreCache.computeIfAbsent(piles1, k -> new Pair()).addWin(score1);
-//                    if(bestEval1 == 1) strongMoves.computeIfAbsent(piles1, k -> new HashSet<>()).add(i);
-//                    if(bestEval1 == 1) {
-//                        int index = getIndex(piles1);
-//                        if(index != -1) strongMoves[index][i] = true;
-//                    }
-                    return maxEval;
-                }
-            } else empty++;
-        }
-        // scoreCache.computeIfAbsent(piles1, k -> new Pair()).addLoss(score1);
-//        if(score1 - score2 >= 11 && empty == 2) {
-//            upsets.add(((long) piles1 << 30) + (long) piles2);
-//        }
-        return maxEval;
-    }
+    static byte[] optimalScores = loadEndgameCache(16);
 
     static int evaluatePosition(int piles1, int piles2, int score1, int score2, int bestEval1, int bestEval2){
         if(score1 + score2 > midGame) {
-            long posCode = ((long) piles1 << 30) + (long) piles2;
-            score1 += scores[Arrays.binarySearch(positions, posCode)];
+            score1 += optimalScores[Database.positionIndex(((long) piles2 << 30) + (long) piles1, maxScore - score1 - score2)];
             score2 = maxScore - score1;
         }
         else if(piles1 == 0) score2 = maxScore - score1;
         else if(piles2 == 0) score1 = maxScore - score2;
+//        if(score1 - score2 > 2) return 1;
+//        if(score2 - score1 > 5) return -1;
         if(score1 > threshold) return 1;
         if(score2 > threshold) return -1;
         if(score1 == threshold && score2 == threshold) return 0;
         x++;
         int maxEval = -1;
-        int empty = 0;
-        for(int i = 0; i < 6; i++){
+        int[] moveOrder = heuristics.get(((long) piles2 << 30) + (long) piles1);
+        if(moveOrder == null) moveOrder = new int[]{0, 1, 2, 3, 4, 5};
+        for(int i : moveOrder) {
+//        for (int m = 0; m < 18; m+=3) {
+//            int i = order >> m & 0b111;
             int iShift = i * 5;
             int stones = (piles1 >> iShift) & 31;
             if(stones > 0) {
@@ -274,22 +106,104 @@ public class Engine {
                 if(eval > maxEval) maxEval = eval;
                 if(eval > bestEval1) bestEval1 = eval;
                 if (bestEval1 >= bestEval2) {
-                    // if(bestEval1 == 1) scoreCache.computeIfAbsent(piles1, k -> new Pair()).addWin(score1);
-//                    if(bestEval1 == 1) strongMoves.computeIfAbsent(piles1, k -> new HashSet<>()).add(i);
-//                    if(bestEval1 == 1) {
-//                        int index = getIndex(piles1);
-//                        if(index != -1) strongMoves[index][i] = true;
-//                    }
+                    // if(maxEval == 1) updateOrder(i, piles1);
                     return maxEval;
                 }
-            } else empty++;
+            }
         }
-        // scoreCache.computeIfAbsent(piles1, k -> new Pair()).addLoss(score1);
-//        if(score1 - score2 >= 11 && empty == 2) {
-//            upsets.add(((long) piles1 << 30) + (long) piles2);
-//        }
         return maxEval;
-    }//31811745
+    }
+
+    static HashMap<Long, int[]> heuristics = new HashMap<>();
+
+    static void calculateHueristics(int piles1, int piles2, int depth) {
+        calculateMaxScore(piles1, piles2, 0, 0, depth);
+    }
+
+    static int calculateMaxScore(int piles1, int piles2, int score1, int score2,  int depth) {
+        x++;
+        if(depth == 0) return score1 - score2;
+        int[][] moveHeuristics = {{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}};
+        int maxScore = -Engine.maxScore;
+        for(int i = 0; i < 6; i++) {
+            int iShift = i * 5;
+            int stones = (piles1 >> iShift) & 31;
+            if (stones > 0) {
+                int nextScore = score1;
+                int nextPiles1 = piles1 - (stones << iShift);
+                int nextPiles2 = piles2;
+                for (int j = 0; j < 6; j++) {
+                    int jShift = j * 5;
+                    nextPiles1 += ((j - i + 13) % 13 + stones) / 13 << jShift;
+                    nextPiles2 += ((j - i + 6) % 13 + stones) / 13 << jShift;
+                }
+                int dest = (52 + i - stones) % 13, destShift = dest * 5;
+                if (stones > i) nextScore += (12 - i + stones) / 13;
+                if (dest < 6 && stones < 14 && ((piles1 >> destShift) & 31) == 0) {
+                    int shift2 = (5 - dest) * 5;
+                    if (((nextPiles2 >> shift2) & 31) != 0) {
+                        nextPiles1 &= ~(31 << destShift);
+                        nextScore += ((nextPiles2 >> shift2) & 31) + 1;
+                        nextPiles2 &= ~(31 << shift2);
+                    }
+                }
+                int score;
+                if (dest == 12) score = calculateMaxScore(nextPiles1, nextPiles2, nextScore, score2, depth);
+                else score = -calculateMaxScore(nextPiles2, nextPiles1, score2, nextScore, depth - 1);
+                moveHeuristics[i][1] = score;
+                maxScore = Math.max(maxScore, score);
+            }
+        }
+        Arrays.sort(moveHeuristics, (a, b) -> a[1] == b[1] ? a[0] - b[0] : b[1] - a[1]);
+        int[] moveOrder = new int[6];
+        int i = 0;
+        for(int[] move : moveHeuristics) moveOrder[i++] = move[0];
+        heuristics.put(((long) piles2 << 30) + (long) piles1, moveOrder);
+        return maxScore;
+    }
+
+    static int[] strongMoves = generateDefaultMoves();
+    static int DEFAULT_ORDER = (5 << 15) + (4 << 12) + (3 << 9) + (2 << 6) + (1 << 3);
+
+    static int moveOrder(int piles) {
+        int stones = 0;
+        for(int i = 0; i < 30; i+=5) stones += piles >> i & 0b11111;
+        int index = positionIndex(piles, stones);
+        if(index < strongMoves.length) return strongMoves[index];
+        return DEFAULT_ORDER;
+    }
+
+    static int[] generateDefaultMoves() {
+        int[] strongMoves = new int[Database.comboSums[40][6]];
+        Arrays.fill(strongMoves, 181896);
+        return strongMoves;
+    }
+
+    static void updateOrder(int move, int piles) {
+        int stones = 0;
+        for(int i = 0; i < 30; i+=5) stones += piles >> i & 0b11111;
+        int index = positionIndex(piles, stones);
+        int order = strongMoves[index];
+        int length = (order >> 18 & 0b111) * 3;
+        for(int i = length; i < 18; i+=3) {
+            int currMove = (order >> i) & 0b111;
+            if(currMove == move) {
+                order = (order & (1 << length) - 1) + (move << length) +
+                        (((order >> length) & (1 << i - length) - 1) << length + 3) +
+                        (order >> i + 3 << i + 3) + (1 << 18);
+            }
+        }
+        strongMoves[index] = order;
+    }
+
+    static int positionIndex(int piles, int stones) {
+        int index = 0;
+        for(int i = 0; i < 6 && stones > 0; i++) {
+            index += Database.comboSums[stones - 1][6 - i];
+            stones -= piles >> i * 5 & 0b11111;
+        }
+        return index;
+    }
 
     static class Pair {
         HashSet<Integer> wins = new HashSet<>();
@@ -302,7 +216,7 @@ public class Engine {
         }
     }
 
-    public static void main4(String[] args) {
+    public static void main2(String[] args) {
         //1 0 5 5 0 0   7
         //1 5 3 0 0 0   9
         long startTime = System.currentTimeMillis();
@@ -354,25 +268,6 @@ public class Engine {
 //        System.out.println(x);
 //        System.out.println(seen.size());
 //        System.out.println(y);
-    }
-
-    static int interpolationSearch(long[] arr, long target) {
-        int start = 0, end = arr.length - 1;
-        while(start <= end) {
-            long startVal = arr[start], endVal = arr[end];
-            System.out.println(start + " " + end);
-            if(startVal == target) return start;
-            if(startVal > target || endVal < target) return -1;
-            int guess = BigInteger.valueOf(start).add(
-                    new BigInteger(String.valueOf(end - start))
-                            .multiply(BigInteger.valueOf(target - startVal))
-                            .divide(BigInteger.valueOf(endVal - startVal))).intValue();
-            long guessVal = arr[guess];
-            if(guessVal == target) return guess;
-            if(guessVal > target) end = guess - 1;
-            else start = guess + 1;
-        }
-        return -1;
     }
 
     static void getGameData(State start, int games) {
@@ -501,29 +396,5 @@ public class Engine {
             else System.out.println("Not a move!");
         }
         return pile;
-    }
-
-    static int[] nextMove(int piles1, int piles2, int score1, int pile) {
-        int iShift = pile * 5;
-        int stones = (piles1 >> iShift) & 31;
-        int nextScore = score1;
-        int nextPiles1 = piles1 - (stones << iShift);
-        int nextPiles2 = piles2;
-        for (int j = 0; j < 6; j++) {
-            int jShift = j * 5;
-            nextPiles1 += ((j - pile + 13) % 13 + stones) / 13 << jShift;
-            nextPiles2 += ((j - pile + 6) % 13 + stones) / 13 << jShift;
-        }
-        int dest = (52 + pile - stones) % 13, destShift = dest * 5;
-        if (stones > pile) nextScore += (12 - pile + stones) / 13;
-        if (dest < 6 && stones < 14 && ((piles1 >> destShift) & 31) == 0) {
-            int shift2 = (5 - dest) * 5;
-            if (((nextPiles2 >> shift2) & 31) != 0) {
-                nextPiles1 &= ~(31 << destShift);
-                nextScore += ((nextPiles2 >> shift2) & 31) + 1;
-                nextPiles2 &= ~(31 << shift2);
-            }
-        }
-        return new int[]{nextPiles1, nextPiles2, nextScore, dest == 12 ? 1 : 0, pile + 1};
     }
 }
