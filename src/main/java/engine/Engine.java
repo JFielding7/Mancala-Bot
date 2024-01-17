@@ -35,32 +35,45 @@ public class Engine {
     static int maxScore = 48;
     static int threshold = maxScore >>> 1;
     static long x;
+    static int draws;
     static int endgame = 24;
     static int midGame = maxScore - endgame - 1;
     static HashMap<Integer, HashSet<Integer>> seen = new HashMap<>();
     static long[] positions;
     static byte[] scores;
-    static HashSet<Long> posSeen = new HashSet<>();
+    static HashSet<Long> drawsConfirmed = new HashSet<>();
 
 
     public static void main(String[] args) {
         // loadBinaryArr(endgame);
         optimalScores = loadEndgameCache(endgame);
-        int p2 = encode(new StringBuilder("4 4 4 4 4 4").reverse().toString());
-        int p1 = encode("4 4 4 4 4 4");
-        System.out.println(p2);
-        int score1 = -4;
-        int score2 = 4;
-        calculateHueristics(138547332, 138547332, 6);
+        int p2 = encode(new StringBuilder("5 0 4 4 4 4").reverse().toString());
+        int p1 = encode("5 5 4 4 4 4");
+        int score1 = 0;
+        int score2 = 1;
+
+        // 138547332
+        System.gc();
+        calculateHeuristics(p1, p2, 6);
+        System.out.println("Done");
         long startTime = System.currentTimeMillis();
         System.out.println("Eval: " + evaluatePosition(p1, p2, score1, score2, -1, 1));
         System.out.println("Time: " + (System.currentTimeMillis() - startTime));
         System.out.println(x);
+        System.out.println(draws);
+        System.out.println(heuristicScores.size());
+        System.out.println(Arrays.toString(frequency));
     }
 
-    static byte[] optimalScores = loadEndgameCache(16);
+    // 881930
+    // 450007
 
-    static int evaluatePosition(int piles1, int piles2, int score1, int score2, int bestEval1, int bestEval2){
+    static byte[] optimalScores;
+
+    static int[] frequency = new int[6];
+
+    static int evaluatePosition(int piles1, int piles2, int score1, int score2, int bestEval1, int bestEval2) {
+        x++;
         if(score1 + score2 > midGame) {
             score1 += optimalScores[Database.positionIndex(((long) piles2 << 30) + (long) piles1, maxScore - score1 - score2)];
             score2 = maxScore - score1;
@@ -72,16 +85,17 @@ public class Engine {
         if(score1 > threshold) return 1;
         if(score2 > threshold) return -1;
         if(score1 == threshold && score2 == threshold) return 0;
-        x++;
         int maxEval = -1;
         int[] moveOrder = heuristics.get(((long) piles2 << 30) + (long) piles1);
         if(moveOrder == null) moveOrder = new int[]{0, 1, 2, 3, 4, 5};
+        int m = -1;
         for(int i : moveOrder) {
 //        for (int m = 0; m < 18; m+=3) {
 //            int i = order >> m & 0b111;
             int iShift = i * 5;
-            int stones = (piles1 >> iShift) & 31;
+            int stones = (piles1 >> iShift) & 0b11111;
             if(stones > 0) {
+                m++;
                 int nextScore = score1;
                 int nextPiles1 = piles1 - (stones << iShift);
                 int nextPiles2 = piles2;
@@ -92,12 +106,12 @@ public class Engine {
                 }
                 int dest = (52 + i - stones) % 13, destShift = dest * 5;
                 if (stones > i) nextScore += (12 - i + stones) / 13;
-                if (dest < 6 && stones < 14 && ((piles1 >> destShift) & 31) == 0) {
+                if (dest < 6 && stones < 14 && ((piles1 >> destShift) & 0b11111) == 0) {
                     int shift2 = (5 - dest) * 5;
-                    if (((nextPiles2 >> shift2) & 31) != 0) {
-                        nextPiles1 &= ~(31 << destShift);
-                        nextScore += ((nextPiles2 >> shift2) & 31) + 1;
-                        nextPiles2 &= ~(31 << shift2);
+                    if (((nextPiles2 >> shift2) & 0b11111) != 0) {
+                        nextPiles1 &= ~(0b11111 << destShift);
+                        nextScore += ((nextPiles2 >> shift2) & 0b11111) + 1;
+                        nextPiles2 &= ~(0b11111 << shift2);
                     }
                 }
                 int eval;
@@ -106,7 +120,7 @@ public class Engine {
                 if(eval > maxEval) maxEval = eval;
                 if(eval > bestEval1) bestEval1 = eval;
                 if (bestEval1 >= bestEval2) {
-                    // if(maxEval == 1) updateOrder(i, piles1);
+                    if(score1 + score2 < 6) frequency[m]++;
                     return maxEval;
                 }
             }
@@ -115,14 +129,17 @@ public class Engine {
     }
 
     static HashMap<Long, int[]> heuristics = new HashMap<>();
+    static HashMap<Long, Integer> heuristicScores = new HashMap<>();
 
-    static void calculateHueristics(int piles1, int piles2, int depth) {
+    static void calculateHeuristics(int piles1, int piles2, int depth) {
         calculateMaxScore(piles1, piles2, 0, 0, depth);
     }
 
-    static int calculateMaxScore(int piles1, int piles2, int score1, int score2,  int depth) {
-        x++;
+    static int calculateMaxScore(int piles1, int piles2, int score1, int score2, int depth) {
         if(depth == 0) return score1 - score2;
+        long positionCode = ((long) piles2 << 30) + (long) piles1;
+        if(heuristicScores.containsKey(positionCode)) return heuristicScores.get(positionCode);
+        // x++;
         int[][] moveHeuristics = {{0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}};
         int maxScore = -Engine.maxScore;
         for(int i = 0; i < 6; i++) {
@@ -158,7 +175,8 @@ public class Engine {
         int[] moveOrder = new int[6];
         int i = 0;
         for(int[] move : moveHeuristics) moveOrder[i++] = move[0];
-        heuristics.put(((long) piles2 << 30) + (long) piles1, moveOrder);
+        heuristics.put(positionCode, moveOrder);
+//        heuristicScores.put(positionCode, maxScore);
         return maxScore;
     }
 
