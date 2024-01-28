@@ -15,6 +15,18 @@ public final class State {
         this.pile = pile;
     }
 
+    public State(int piles1, int piles2, int score1, int score2) {
+        this.piles1 = piles1;
+        this.piles2 = piles2;
+        this.score1 = score1;
+        this.score2 = score2;
+    }
+
+    public State(int piles1, int piles2) {
+        this.piles1 = piles1;
+        this.piles2 = piles2;
+    }
+
     public ArrayList<State> nextStates() {
         ArrayList<State> moves = new ArrayList<>();
         for(int i = 0; i < 6; i++) {
@@ -45,6 +57,10 @@ public final class State {
             }
         }
         return dest == 12 ? new State(nextPiles1, nextPiles2, nextScore, score2, comTurn, pile) : new State(nextPiles2, nextPiles1, score2, nextScore, !comTurn, pile);
+    }
+
+    public long code() {
+        return ((long) piles2 << 30) + (long) piles1;
     }
 
     @Override

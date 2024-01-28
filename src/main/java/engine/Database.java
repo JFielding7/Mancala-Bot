@@ -14,7 +14,7 @@ public class Database {
 //        long memory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
 //        int[] x = new int[2000000000];
         long start = System.currentTimeMillis();
-        System.out.println(combosSum(24, 12).longValue());
+        System.out.println(combosSum(24, 12).longValue() - 2 * combosSum(24, 12).longValue());
         System.out.println(System.currentTimeMillis() - start);
 //        System.gc();
 //        System.out.println((Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() - memory) / 1_000_000_000.0);

@@ -41,18 +41,15 @@ public class Engine {
     static HashMap<Integer, HashSet<Integer>> seen = new HashMap<>();
     static long[] positions;
     static byte[] scores;
-    static HashSet<Long> drawsConfirmed = new HashSet<>();
 
 
     public static void main(String[] args) {
         // loadBinaryArr(endgame);
         optimalScores = loadEndgameCache(endgame);
-        int p2 = encode(new StringBuilder("5 0 4 4 4 4").reverse().toString());
-        int p1 = encode("5 5 4 4 4 4");
+        int p2 = encode(new StringBuilder("4 4 4 4 4 4").reverse().toString());
+        int p1 = encode("4 4 4 4 4 4");
         int score1 = 0;
-        int score2 = 1;
-
-        // 138547332
+        int score2 = 0;
         System.gc();
         calculateHeuristics(p1, p2, 6);
         System.out.println("Done");
@@ -60,9 +57,19 @@ public class Engine {
         System.out.println("Eval: " + evaluatePosition(p1, p2, score1, score2, -1, 1));
         System.out.println("Time: " + (System.currentTimeMillis() - startTime));
         System.out.println(x);
-        System.out.println(draws);
-        System.out.println(heuristicScores.size());
+        Arrays.fill(frequency, 0);
+        startTime = System.currentTimeMillis();
+        System.out.println("Eval: " + evaluatePosition(p1, p2, score1, score2, -1, 1));
+        System.out.println("Time: " + (System.currentTimeMillis() - startTime));
+        System.out.println(x);
+        System.out.println(p.size());
         System.out.println(Arrays.toString(frequency));
+        int total = 0;
+        for (long pos : cutoffMoves.keySet()) {
+            total += cutoffMoves.get(pos).size();
+        }
+        System.out.println(total);
+        System.out.println(cutoffMoves.size());
     }
 
     // 881930
@@ -70,7 +77,9 @@ public class Engine {
 
     static byte[] optimalScores;
 
-    static int[] frequency = new int[6];
+    static int[] frequency = new int[7];
+    static HashSet<Long> p = new HashSet<>();
+    static HashMap<Long, HashSet<Integer>> cutoffMoves = new HashMap<>();
 
     static int evaluatePosition(int piles1, int piles2, int score1, int score2, int bestEval1, int bestEval2) {
         x++;
@@ -86,10 +95,14 @@ public class Engine {
         if(score2 > threshold) return -1;
         if(score1 == threshold && score2 == threshold) return 0;
         int maxEval = -1;
-        int[] moveOrder = heuristics.get(((long) piles2 << 30) + (long) piles1);
-        if(moveOrder == null) moveOrder = new int[]{0, 1, 2, 3, 4, 5};
+//        int moveOrder = heuristics.get(((long) piles2 << 30) + (long) piles1);
+//        if(moveOrder == null) moveOrder = new int[]{0, 1, 2, 3, 4, 5};
+//        long code = ((long) piles2 << 30) + (long) piles1 + ((long) (score1 & 15) << 60);
+//        if (cutoffMoves.containsKey(code)) {
+//            moveOrder = new int[]{cutoffMoves.get(code).stream().toList().get(0), 0, 1, 2, 3, 4, 5};
+//        }
         int m = -1;
-        for(int i : moveOrder) {
+        for(int i = 0; i < 6; i++) {
 //        for (int m = 0; m < 18; m+=3) {
 //            int i = order >> m & 0b111;
             int iShift = i * 5;
@@ -120,7 +133,9 @@ public class Engine {
                 if(eval > maxEval) maxEval = eval;
                 if(eval > bestEval1) bestEval1 = eval;
                 if (bestEval1 >= bestEval2) {
-                    if(score1 + score2 < 6) frequency[m]++;
+                    long posCode = ((long) piles2 << 30) + (long) piles1 + ((long) (score1 & 15) << 60);
+                    cutoffMoves.computeIfAbsent(posCode, k -> new HashSet<>()).add(i);
+                    frequency[m]++;
                     return maxEval;
                 }
             }
@@ -128,7 +143,7 @@ public class Engine {
         return maxEval;
     }
 
-    static HashMap<Long, int[]> heuristics = new HashMap<>();
+    static HashMap<Long, Integer> heuristics = new HashMap<>();
     static HashMap<Long, Integer> heuristicScores = new HashMap<>();
 
     static void calculateHeuristics(int piles1, int piles2, int depth) {
@@ -174,9 +189,10 @@ public class Engine {
         Arrays.sort(moveHeuristics, (a, b) -> a[1] == b[1] ? a[0] - b[0] : b[1] - a[1]);
         int[] moveOrder = new int[6];
         int i = 0;
-        for(int[] move : moveHeuristics) moveOrder[i++] = move[0];
-        heuristics.put(positionCode, moveOrder);
-//        heuristicScores.put(positionCode, maxScore);
+        int order = 0;
+        for(int[] move : moveHeuristics) order += move[0] << 3 * i++;
+        heuristics.put(positionCode, order);
+        if (depth == 4) Solver.positions.add(new State(piles1, piles2, score1, score2));
         return maxScore;
     }
 
